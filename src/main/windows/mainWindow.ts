@@ -768,6 +768,92 @@ export default class MainWindow extends BaseWindow {
             return false;
         }
 
+        function simulateClick(btn) {
+            if (!btn) return;
+            try {
+                btn.focus();
+                const opts = { bubbles: true, cancelable: true, view: window };
+                btn.dispatchEvent(new PointerEvent('pointerdown', opts));
+                btn.dispatchEvent(new MouseEvent('mousedown', opts));
+                btn.dispatchEvent(new PointerEvent('pointerup', opts));
+                btn.dispatchEvent(new MouseEvent('mouseup', opts));
+                btn.click();
+            } catch (err) {
+                console.error('[GeminiDesktop] Error simulating click on send button:', err);
+                btn.click();
+            }
+        }
+
+        function clearRemainingAttachments(container) {
+            try {
+                const attachments = [];
+                const selectors = [
+                    'gem-media-attachment',
+                    'g-attachment',
+                    '.gem-attachment-content',
+                    '.uploader-preview',
+                    '[class*="attachment"]'
+                ];
+                
+                const root = container || document;
+                selectors.forEach(sel => {
+                    const els = root.querySelectorAll ? root.querySelectorAll(sel) : [];
+                    els.forEach(el => {
+                        if (!attachments.includes(el)) {
+                            attachments.push(el);
+                        }
+                    });
+                });
+
+                // Also check shadow roots recursively in case elements are inside them
+                const allEls = root.querySelectorAll ? root.querySelectorAll('*') : [];
+                allEls.forEach(el => {
+                    if (el.shadowRoot) {
+                        selectors.forEach(sel => {
+                            const found = el.shadowRoot.querySelectorAll(sel);
+                            found.forEach(f => {
+                                if (!attachments.includes(f)) {
+                                    attachments.push(f);
+                                }
+                            });
+                        });
+                    }
+                });
+
+                if (attachments.length > 0) {
+                    console.log('[GeminiDesktop] Clearing leftover attachments:', attachments.length);
+                }
+
+                attachments.forEach(attachment => {
+                    const closeBtn = querySelectorDeep('button[aria-label*="Remove"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="remove"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="Delete"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="delete"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="Clear"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="clear"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="Close"]', attachment) ||
+                                     querySelectorDeep('button[aria-label*="close"]', attachment) ||
+                                     querySelectorDeep('button', attachment) ||
+                                     querySelectorDeep('[role="button"]', attachment) ||
+                                     querySelectorDeep('.remove-button', attachment) ||
+                                     querySelectorDeep('.delete-button', attachment) ||
+                                     querySelectorDeep('.close-button', attachment) ||
+                                     querySelectorDeep('[class*="remove"]', attachment) ||
+                                     querySelectorDeep('[class*="delete"]', attachment) ||
+                                     querySelectorDeep('[class*="close"]', attachment);
+                    if (closeBtn) {
+                        closeBtn.click();
+                        console.log('[GeminiDesktop] Clicked close button on attachment.');
+                    } else {
+                        attachment.click();
+                        console.log('[GeminiDesktop] Clicked attachment directly as fallback.');
+                    }
+                });
+            } catch (err) {
+                console.error('[GeminiDesktop] Error clearing attachments:', err);
+            }
+        }
+
         function retrySubmit(container) {
             let attempts = 0;
             const retry = setInterval(() => {
@@ -775,10 +861,15 @@ export default class MainWindow extends BaseWindow {
                 if (!enterQueued) { clearInterval(retry); return; }
                 const btn = findSubmitButton(container);
                 if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
-                    btn.click();
+                    simulateClick(btn);
                     enterQueued = false;
                     clearInterval(retry);
                     console.log('[GeminiDesktop] Submitted queued message.');
+                    
+                    // Clear leftover attachments after a short delay
+                    setTimeout(() => {
+                        clearRemainingAttachments(container);
+                    }, 300);
                     return;
                 }
                 if (attempts > 30) {
