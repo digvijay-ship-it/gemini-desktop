@@ -741,30 +741,61 @@ export default class MainWindow extends BaseWindow {
             return false;
         }
 
+        function findUploadContainers(root = document) {
+            const selectors = [
+                'gem-media-attachment',
+                'g-attachment',
+                '.gem-attachment-content',
+                '.uploader-preview',
+                '.xap-uploader-dropzone',
+                '[class*="uploader"]',
+                '[class*="attachment"]'
+            ];
+            const containers = [];
+            selectors.forEach(sel => {
+                const els = root.querySelectorAll ? root.querySelectorAll(sel) : [];
+                els.forEach(el => {
+                    if (!containers.includes(el)) containers.push(el);
+                });
+                
+                // Shadow DOM support
+                const allEls = root.querySelectorAll ? root.querySelectorAll('*') : [];
+                allEls.forEach(el => {
+                    if (el.shadowRoot) {
+                        const found = el.shadowRoot.querySelectorAll(sel);
+                        found.forEach(f => {
+                            if (!containers.includes(f)) containers.push(f);
+                        });
+                    }
+                });
+            });
+            return containers;
+        }
+
         function isUploading(container = document) {
-            // Check for progress/spinner elements
-            if (querySelectorDeep('.mdc-circular-progress--indeterminate', container)) return true;
-            if (querySelectorDeep('mat-progress-spinner', container)) return true;
-            if (querySelectorDeep('mat-spinner', container)) return true;
-            if (querySelectorDeep('[role="progressbar"]', container)) return true;
-            if (querySelectorDeep('.loading-spinner', container)) return true;
-            if (querySelectorDeep('progress', container)) return true;
-            if (querySelectorDeep('.xap-uploader-dropzone', container)?.querySelector('.mdc-circular-progress--indeterminate')) return true;
-            
-            // Check for un-loaded images
-            const img = querySelectorDeep('img', container);
-            if (img && img.naturalWidth === 0) return true;
-            
-            // Check loading classes
-            if (querySelectorDeep('.loading', container)) return true;
-            if (querySelectorDeep('[class*="loading"]', container)) return true;
-            
-            // If button is disabled and there is an attachment/text, it is likely uploading
-            const btn = findSubmitButton(container);
-            if (btn && (btn.disabled || btn.getAttribute('aria-disabled') === 'true')) {
-                return true;
+            const uploadContainers = findUploadContainers(container);
+            if (uploadContainers.length === 0) {
+                // If there are no attachment containers, we are definitely not uploading a file
+                return false;
             }
-            
+
+            // Check each upload container for active upload indicators
+            for (const uploadCont of uploadContainers) {
+                if (querySelectorDeep('.mdc-circular-progress--indeterminate', uploadCont)) return true;
+                if (querySelectorDeep('mat-progress-spinner', uploadCont)) return true;
+                if (querySelectorDeep('mat-spinner', uploadCont)) return true;
+                if (querySelectorDeep('[role="progressbar"]', uploadCont)) return true;
+                if (querySelectorDeep('.loading-spinner', uploadCont)) return true;
+                if (querySelectorDeep('progress', uploadCont)) return true;
+                if (querySelectorDeep('[class*="loading"]', uploadCont)) return true;
+                if (querySelectorDeep('[class*="progress"]', uploadCont)) return true;
+                if (querySelectorDeep('[class*="spinner"]', uploadCont)) return true;
+
+                // Check for un-loaded images inside the upload container
+                const img = querySelectorDeep('img', uploadCont);
+                if (img && img.naturalWidth === 0) return true;
+            }
+
             return false;
         }
 
