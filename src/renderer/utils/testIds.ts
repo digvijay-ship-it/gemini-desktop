@@ -97,6 +97,7 @@ export const TAB_TEST_IDS = {
     TAB_PANEL: 'tab-panel',
     tab: (id: string) => `tab-${id}`,
     tabClose: (id: string) => `tab-close-${id}`,
+    tabReload: (id: string) => `tab-reload-${id}`,
     tabIframe: (id: string) => `tab-iframe-${id}`,
 } as const;
 

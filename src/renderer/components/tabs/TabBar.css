@@ -86,13 +86,39 @@
     opacity: 0;
 }
 
+.tab__reload {
+    border: none;
+    border-radius: 4px;
+    width: 18px;
+    height: 18px;
+    background: transparent;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    font-size: 14px;
+    line-height: 1;
+    transition:
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
 .tab:hover .tab__close,
-.tab--active .tab__close {
+.tab--active .tab__close,
+.tab:hover .tab__reload,
+.tab--active .tab__reload {
     opacity: 1;
 }
 
-.tab__close:hover {
+.tab__close:hover,
+.tab__reload:hover {
     background: var(--hover-bg);
+}
+
+.tab__reload:hover {
+    transform: rotate(30deg);
 }
 
 .tab-bar__new {

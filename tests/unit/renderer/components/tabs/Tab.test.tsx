@@ -70,4 +70,27 @@ describe('Tab', () => {
         fireEvent.mouseDown(screen.getByTestId('tab-tab-1'), { button: 2 });
         expect(onClose).not.toHaveBeenCalled();
     });
+
+    it('renders reload button only when active', () => {
+        const { rerender } = render(
+            <Tab tab={baseTab} isActive={false} onClick={vi.fn()} onClose={vi.fn()} onMouseDown={vi.fn()} />
+        );
+        expect(screen.queryByTestId('tab-reload-tab-1')).toBeNull();
+
+        rerender(<Tab tab={baseTab} isActive onClick={vi.fn()} onClose={vi.fn()} onMouseDown={vi.fn()} />);
+        expect(screen.queryByTestId('tab-reload-tab-1')).not.toBeNull();
+    });
+
+    it('calls reloadTabs when reload button clicked', () => {
+        const mockReloadTabs = vi.fn();
+        (window as any).electronAPI = { reloadTabs: mockReloadTabs };
+
+        render(<Tab tab={baseTab} isActive onClick={vi.fn()} onClose={vi.fn()} onMouseDown={vi.fn()} />);
+
+        const btn = screen.getByTestId('tab-reload-tab-1');
+        fireEvent.click(btn);
+
+        expect(mockReloadTabs).toHaveBeenCalledWith('tab-1');
+        delete (window as any).electronAPI;
+    });
 });

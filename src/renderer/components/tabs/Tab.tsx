@@ -25,6 +25,11 @@ export function Tab({ tab, isActive, onClick, onClose, onMouseDown }: TabProps) 
         onClose();
     };
 
+    const handleReloadClick = (event: MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        window.electronAPI?.reloadTabs(tab.id);
+    };
+
     return (
         <div className={`tab${isActive ? ' tab--active' : ''}`}>
             <button
@@ -37,6 +42,18 @@ export function Tab({ tab, isActive, onClick, onClose, onMouseDown }: TabProps) 
             >
                 <span className="tab__title">{tab.title}</span>
             </button>
+            {isActive && (
+                <button
+                    type="button"
+                    className="tab__reload"
+                    onClick={handleReloadClick}
+                    data-testid={TAB_TEST_IDS.tabReload(tab.id)}
+                    title="Reload tab"
+                    aria-label={`Reload ${tab.title}`}
+                >
+                    ⟳
+                </button>
+            )}
             <button
                 type="button"
                 className="tab__close"
