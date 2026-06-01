@@ -730,14 +730,25 @@ export default class MainWindow extends BaseWindow {
         }
 
         function hasAttachment(container = document) {
-            if (querySelectorDeep('gem-media-attachment', container)) return true;
-            if (querySelectorDeep('g-attachment', container)) return true;
-            if (querySelectorDeep('.gem-attachment-content', container)) return true;
-            if (querySelectorDeep('img[class*="attachment"]', container)) return true;
-            if (querySelectorDeep('[class*="attachment-style"]', container)) return true;
-            if (querySelectorDeep('.uploader-preview', container)) return true;
-            if (querySelectorDeep('[class*="input-area"] img', container) || querySelectorDeep('[class*="prompt"] img', container)) return true;
-            if (querySelectorDeep('.ql-editor img', container)) return true;
+            const selectors = [
+                { sel: 'gem-media-attachment', name: 'gem-media-attachment element' },
+                { sel: 'g-attachment', name: 'g-attachment element' },
+                { sel: '.gem-attachment-content', name: 'Gem attachment content class' },
+                { sel: 'img[class*="attachment"]', name: 'Image with attachment class' },
+                { sel: '[class*="attachment-style"]', name: 'Element with attachment-style class' },
+                { sel: '.uploader-preview', name: 'Uploader preview class' },
+                { sel: '[class*="input-area"] img', name: 'Image inside input area' },
+                { sel: '[class*="prompt"] img', name: 'Image inside prompt area' },
+                { sel: '.ql-editor img', name: 'Image inside Quill editor' }
+            ];
+
+            for (const item of selectors) {
+                const el = querySelectorDeep(item.sel, container);
+                if (el) {
+                    console.log('[GeminiDesktop] hasAttachment = true. Matched attachment selector:', item.name, 'Element:', el.tagName, 'Class:', el.className);
+                    return true;
+                }
+            }
             return false;
         }
 
@@ -775,25 +786,36 @@ export default class MainWindow extends BaseWindow {
         function isUploading(container = document) {
             const uploadContainers = findUploadContainers(container);
             if (uploadContainers.length === 0) {
-                // If there are no attachment containers, we are definitely not uploading a file
                 return false;
             }
 
-            // Check each upload container for active upload indicators
             for (const uploadCont of uploadContainers) {
-                if (querySelectorDeep('.mdc-circular-progress--indeterminate', uploadCont)) return true;
-                if (querySelectorDeep('mat-progress-spinner', uploadCont)) return true;
-                if (querySelectorDeep('mat-spinner', uploadCont)) return true;
-                if (querySelectorDeep('[role="progressbar"]', uploadCont)) return true;
-                if (querySelectorDeep('.loading-spinner', uploadCont)) return true;
-                if (querySelectorDeep('progress', uploadCont)) return true;
-                if (querySelectorDeep('[class*="loading"]', uploadCont)) return true;
-                if (querySelectorDeep('[class*="progress"]', uploadCont)) return true;
-                if (querySelectorDeep('[class*="spinner"]', uploadCont)) return true;
+                const indicators = [
+                    { sel: '.mdc-circular-progress--indeterminate', name: 'Indeterminate circular progress' },
+                    { sel: 'mat-progress-spinner', name: 'Angular progress spinner' },
+                    { sel: 'mat-spinner', name: 'Angular spinner' },
+                    { sel: '[role="progressbar"]', name: 'ARIA progressbar' },
+                    { sel: '.loading-spinner', name: 'Loading spinner class' },
+                    { sel: 'progress', name: 'HTML5 progress element' },
+                    { sel: '[class*="loading"]', name: 'Class containing "loading"' },
+                    { sel: '[class*="progress"]', name: 'Class containing "progress"' },
+                    { sel: '[class*="spinner"]', name: 'Class containing "spinner"' }
+                ];
+
+                for (const ind of indicators) {
+                    const el = querySelectorDeep(ind.sel, uploadCont);
+                    if (el) {
+                        console.log('[GeminiDesktop] isUploading = true. Found active upload indicator:', ind.name, 'Element:', el.tagName, 'Class:', el.className);
+                        return true;
+                    }
+                }
 
                 // Check for un-loaded images inside the upload container
                 const img = querySelectorDeep('img', uploadCont);
-                if (img && img.naturalWidth === 0) return true;
+                if (img && img.naturalWidth === 0) {
+                    console.log('[GeminiDesktop] isUploading = true. Found un-loaded image in attachment container:', img.src || 'no-src', 'Element:', img);
+                    return true;
+                }
             }
 
             return false;
@@ -887,11 +909,21 @@ export default class MainWindow extends BaseWindow {
 
         function retrySubmit(container) {
             let attempts = 0;
+            console.log('[GeminiDesktop] retrySubmit called.');
             const retry = setInterval(() => {
                 attempts++;
-                if (!enterQueued) { clearInterval(retry); return; }
+                if (!enterQueued) {
+                    console.log('[GeminiDesktop] retrySubmit cancelled (enterQueued is false).');
+                    clearInterval(retry);
+                    return;
+                }
                 const btn = findSubmitButton(container);
-                if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {
+                const disabled = btn ? (btn.disabled || btn.getAttribute('aria-disabled') === 'true') : true;
+
+                console.log('[GeminiDesktop] retrySubmit attempt #' + attempts + ': Button found: ' + (!!btn) + ', disabled: ' + disabled);
+
+                if (btn && !disabled) {
+                    console.log('[GeminiDesktop] Button is active, simulating click.');
                     simulateClick(btn);
                     enterQueued = false;
                     clearInterval(retry);
@@ -913,10 +945,21 @@ export default class MainWindow extends BaseWindow {
 
         function pollForUploadDone(container) {
             let elapsed = 0;
+            console.log('[GeminiDesktop] Starting poll for upload completion.');
             const poll = setInterval(() => {
                 elapsed += 100;
-                if (!enterQueued) { clearInterval(poll); return; }
-                if (!isUploading(container)) {
+                if (!enterQueued) {
+                    console.log('[GeminiDesktop] Polling cancelled (enterQueued is false).');
+                    clearInterval(poll);
+                    return;
+                }
+                
+                const uploading = isUploading(container);
+                if (elapsed % 1000 === 0) {
+                    console.log('[GeminiDesktop] Polling... elapsed: ' + elapsed + 'ms, isUploading: ' + uploading);
+                }
+
+                if (!uploading) {
                     clearInterval(poll);
                     console.log('[GeminiDesktop] Upload complete, triggering submission.');
                     retrySubmit(container);
@@ -925,10 +968,29 @@ export default class MainWindow extends BaseWindow {
                 if (elapsed > 30000) { // 30s timeout
                     enterQueued = false;
                     clearInterval(poll);
-                    console.warn('[GeminiDesktop] Upload timed out.');
+                    console.warn('[GeminiDesktop] Upload timed out after 30s.');
                 }
             }, 100);
         }
+
+        // Paste event diagnostics listener
+        document.addEventListener('paste', function(e) {
+            const target = e.target;
+            const active = getActiveElementDeep();
+            
+            console.log('[GeminiDesktop] Paste event detected. Target:', target ? target.tagName : 'null', 'Active Element:', active ? active.tagName : 'null');
+            
+            if (e.clipboardData) {
+                const items = e.clipboardData.items;
+                console.log('[GeminiDesktop] Clipboard data items count:', items.length);
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    console.log('[GeminiDesktop] Clipboard item #' + i + ': type="' + item.type + '", kind="' + item.kind + '"');
+                }
+            } else {
+                console.log('[GeminiDesktop] Clipboard data is empty or unavailable');
+            }
+        }, true);
 
         document.addEventListener('keydown', function(e) {
             if (e.key !== 'Enter') return;
